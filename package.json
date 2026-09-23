@@ -1,0 +1,29 @@
+{
+  "name": "ARIEL-MD",
+  "version": "1.0.0",
+  "description": "Bot WhatsApp personnel basé sur Baileys, code 100% lisible, connexion par code d'appairage directement dans la console.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "orchestrator": "node orchestrator/manager.js",
+    "postinstall": "node scripts/download-ytdlp.js && node scripts/ensure-ffmpeg.js"
+  },
+  "engines": {
+    "node": ">=18.x"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.23",
+    "@hapi/boom": "^10.0.1",
+    "pino": "^9.7.0",
+    "ffmpeg-static": "^5.2.0",
+    "axios": "^1.7.7",
+    "form-data": "^4.0.0",
+    "yt-search": "^2.12.1",
+    "mumaker": "^2.0.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "node-webpmux": "^3.2.1",
+    "dejavu-fonts-ttf": "^2.37.3",
+    "jimp": "^1.6.1",
+    "edge-tts-universal": "^1.4.0"
+  }
+}
