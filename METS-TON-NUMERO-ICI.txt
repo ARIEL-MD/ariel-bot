@@ -1,7 +1,0 @@
-NUMÉRO WHATSAPP DU BOT
-========================
-
-Écris ton numéro juste après les deux points ci-dessous (avec l'indicatif
-du pays, sans "+" ni espaces. Exemple : 2250700000000), puis enregistre.
-
-PHONE_NUMBER: 
