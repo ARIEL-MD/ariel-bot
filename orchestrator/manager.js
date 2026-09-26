@@ -234,7 +234,11 @@ function startInstance(chatId, phoneNumber) {
   if (needsPairing) {
     const knownNumber = phoneNumber || (registry.instances[chatId] || {}).phoneNumber || "?";
     reply(chatId, `⚠️ Aucune session trouvée pour <b>${escapeHtml(knownNumber)}</b>.`);
-  } else {
+  } else if (!silentBoot.has(chatId)) {
+    // Pas de message "Reconnexion en cours" lors d'une relance silencieuse
+    // au démarrage du serveur (silentBoot) : l'utilisateur n'a rien demandé,
+    // pas besoin de le prévenir. Le message reste envoyé pour une reconnexion
+    // demandée explicitement (ex: /pair) ou après une coupure WhatsApp.
     reply(chatId, title("🔄", "Reconnexion") + "Reconnexion de ton instance en cours…");
   }
 
