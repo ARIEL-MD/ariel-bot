@@ -1,11 +1,11 @@
 // ===================== CONFIG DE L'ORCHESTRATEUR MULTI-INSTANCES =====================
 // Ce fichier pilote le bot Telegram PUBLIC en libre-service : n'importe qui
-// connaissant le code d'invitation peut, via /pair, obtenir sa PROPRE
-// instance du bot WhatsApp, isolée des autres (session, contacts, réglages
-// séparés), tournant à côté des autres sur ce même serveur.
+// peut, via /pair, obtenir sa PROPRE instance du bot WhatsApp, isolée des
+// autres (session, contacts, réglages séparés), tournant à côté des autres
+// sur ce même serveur.
 //
-// ⚠️ Ne commite/partage jamais ce fichier une fois rempli (token + code
-// d'invitation = accès direct à la création d'instances).
+// ⚠️ Ne commite/partage jamais ce fichier une fois rempli (le token seul
+// donne déjà accès direct à la création d'instances).
 // =====================================================================================
 
 const path = require("path");
@@ -19,14 +19,9 @@ module.exports = {
   // Crée-le via @BotFather.
   TELEGRAM_BOT_TOKEN: "",
 
-  // Ton ID Telegram (récupérable via @userinfobot). Reçoit /stats, les
-  // alertes, et peut changer le code d'invitation avec /setcode.
+  // Ton ID Telegram (récupérable via @userinfobot). Reçoit /stats et les
+  // alertes.
   ADMIN_CHAT_ID: "",
-
-  // Code que les gens doivent connaître pour lancer /pair. Change-le
-  // régulièrement, ou dynamiquement avec /setcode <nouveau_code> (envoyé
-  // par ADMIN_CHAT_ID uniquement).
-  INVITE_CODE: "CHANGE-MOI",
 
   // Nombre maximum d'instances actives en même temps. 0 = pas de limite.
   // (Chaque instance est un processus Node : surveille la RAM de ton serveur

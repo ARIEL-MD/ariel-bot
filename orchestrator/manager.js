@@ -1,8 +1,8 @@
 // ===================== ORCHESTRATEUR MULTI-INSTANCES =====================
-// Bot Telegram PUBLIC en libre-service. N'importe qui connaissant le code
-// d'invitation peut envoyer (en message privé) :
+// Bot Telegram PUBLIC en libre-service. N'importe qui peut envoyer (en
+// message privé) :
 //
-//     /pair <code_invitation> <numero_whatsapp>
+//     /pair <numero_whatsapp>
 //
 // et obtient sa PROPRE instance du bot WhatsApp (session, contacts, réglages
 // totalement isolés des autres utilisateurs), lancée comme un processus Node
@@ -14,11 +14,10 @@
 // orchestrator/instances/<telegram_chat_id>/ (variable BOT_DATA_DIR).
 //
 // Commandes disponibles (Telegram) :
-//   /pair <code> <numero>   — crée/relance TON instance avec ce numéro
+//   /pair <numero>          — crée/relance TON instance avec ce numéro
 //   /status                 — état de TON instance
 //   /stop                   — arrête TON instance (garde tes données)
 //   /stats                  — (admin uniquement) vue d'ensemble
-//   /setcode <nouveau_code> — (admin uniquement) change le code d'invitation
 //   /instances              — (admin uniquement) liste toutes les instances (avec leur chatId)
 //   /name <chatId> <nom>    — (admin uniquement) donne un nom lisible à une instance (ex : "Ami Paul")
 //   /kill <chatId> [wipe]   — (admin uniquement) arrête l'instance de N'IMPORTE QUEL
@@ -30,7 +29,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
 const { fork } = require("child_process");
 const TelegramBot = require("node-telegram-bot-api");
 
@@ -40,34 +38,27 @@ if (!cfg.TELEGRAM_BOT_TOKEN) {
   console.error("❌ Renseigne TELEGRAM_BOT_TOKEN dans orchestrator/config.js avant de lancer.");
   process.exit(1);
 }
-if (!cfg.INVITE_CODE || cfg.INVITE_CODE === "CHANGE-MOI") {
-  console.warn("⚠️  INVITE_CODE vaut encore 'CHANGE-MOI' : choisis un vrai code dans orchestrator/config.js (ou /setcode).");
-}
-
 fs.mkdirSync(cfg.INSTANCES_DIR, { recursive: true });
 
 // Réglages internes (modifiables dans config.js si besoin, sinon valeurs par défaut).
 const MAX_INSTANCES = Number(cfg.MAX_INSTANCES) || 0; // 0 = pas de limite
 const PAIRING_DEADLINE_MS = 3 * 60 * 1000; // temps laissé pour entrer le code dans WhatsApp
 const CODE_TIMEOUT_MS = 45 * 1000; // temps max pour recevoir un code après /pair
-const MAX_BAD_CODES = 5; // mauvais codes d'invitation avant blocage
-const BAD_CODE_BLOCK_MS = 15 * 60 * 1000;
 const RESTART_WINDOW_MS = 10 * 60 * 1000; // fenêtre de comptage des redémarrages auto
 const MAX_RESTARTS_IN_WINDOW = 5;
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
 
 // ===================== REGISTRE PERSISTANT =====================
-// Contient le code d'invitation courant + la liste des instances, pour tout
-// retrouver si l'orchestrateur redémarre (relance automatique plus bas).
+// Contient la liste des instances, pour tout retrouver si l'orchestrateur
+// redémarre (relance automatique plus bas).
 function loadRegistry() {
   try {
     const data = JSON.parse(fs.readFileSync(cfg.REGISTRY_FILE, "utf8"));
     return {
-      inviteCode: data.inviteCode || cfg.INVITE_CODE,
       instances: data.instances || {},
     };
   } catch {
-    return { inviteCode: cfg.INVITE_CODE, instances: {} };
+    return { instances: {} };
   }
 }
 
@@ -96,8 +87,6 @@ const restartHistory = new Map();
 // l'admin) d'un message "connecté !" pour chaque instance à chaque fois que
 // l'orchestrateur redémarre.
 const silentBoot = new Set();
-// chatId (string) -> { count, blockedUntil } pour les mauvais codes d'invitation
-const badCodes = new Map();
 
 function instanceDir(chatId) {
   const dir = path.join(cfg.INSTANCES_DIR, String(chatId));
@@ -199,13 +188,6 @@ const STATUS_BADGES = {
 };
 function statusBadge(status) {
   return STATUS_BADGES[status] || `⚪ ${escapeHtml(status || "inconnu")}`;
-}
-
-// Comparaison en temps constant (évite de deviner le code caractère par caractère).
-function sameCode(a, b) {
-  const ha = crypto.createHash("sha256").update(String(a)).digest();
-  const hb = crypto.createHash("sha256").update(String(b)).digest();
-  return crypto.timingSafeEqual(ha, hb);
 }
 
 function clearTimers(r) {
@@ -478,8 +460,8 @@ function welcomeText() {
     `<i>Ton propre bot WhatsApp, en quelques secondes.</i>\n\n` +
     "<blockquote>" +
     "📌 <b>Comment démarrer</b>\n" +
-    "<code>/pair &lt;code_invitation&gt; &lt;ton_numéro&gt;</code>\n" +
-    "<i>Exemple :</i> <code>/pair ABC123 2250700000000</code>\n\n" +
+    "<code>/pair &lt;ton_numéro&gt;</code>\n" +
+    "<i>Exemple :</i> <code>/pair 2250700000000</code>\n\n" +
     "Tu recevras un code à entrer dans WhatsApp :\n" +
     "<i>Paramètres → Appareils liés → Lier avec un numéro de téléphone</i>" +
     "</blockquote>\n" +
@@ -521,7 +503,7 @@ bot.on("callback_query", (query) => {
       chatId,
       title("📖", "Comment ça marche") +
         box([
-          "1️⃣ Envoie <code>/pair &lt;code&gt; &lt;numéro&gt;</code> (le code t'est donné par l'admin)",
+          "1️⃣ Envoie <code>/pair &lt;numéro&gt;</code>",
           "2️⃣ Tu reçois un code d'appairage ici",
           "3️⃣ WhatsApp → Appareils liés → Lier avec un numéro de téléphone → entre le code",
           "4️⃣ ✅ Ton bot est actif !",
@@ -533,8 +515,6 @@ bot.on("callback_query", (query) => {
     sendStats(chatId);
   } else if (query.data === "admin_instances") {
     sendInstancesList(chatId);
-  } else if (query.data === "admin_setcode") {
-    sendSetcodeUsage(chatId);
   } else if (query.data === "admin_name") {
     sendNameUsage(chatId);
   } else if (query.data === "admin_kill") {
@@ -545,40 +525,21 @@ bot.on("callback_query", (query) => {
 });
 
 // ===================== COMMANDES TELEGRAM =====================
-bot.onText(/^\/pair(?:@\w+)?\s+(\S+)\s+([0-9+\s]+)/i, (msg, match) => {
+bot.onText(/^\/pair(?:@\w+)?\s+([0-9+\s]+)/i, (msg, match) => {
   const chatId = msg.chat.id;
 
-  // Toujours en message privé : dans un groupe, le code d'invitation et le
-  // numéro seraient visibles de tous les membres.
+  // Toujours en message privé : dans un groupe, le numéro serait visible de
+  // tous les membres.
   if (msg.chat.type !== "private") {
-    reply(chatId, title("🔒", "Message privé requis") + "Écris-moi en message privé pour utiliser /pair (le code d'invitation ne doit pas être visible dans un groupe).");
+    reply(chatId, title("🔒", "Message privé requis") + "Écris-moi en message privé pour utiliser /pair.");
     return;
   }
 
   const key = String(chatId);
-  const attempts = badCodes.get(key) || { count: 0, blockedUntil: 0 };
-  if (attempts.blockedUntil > Date.now()) {
-    reply(chatId, title("⛔", "Trop de tentatives") + "Réessaie plus tard.");
-    return;
-  }
-
-  const code = match[1];
-  const phoneNumber = match[2].replace(/[^0-9]/g, "");
-
-  if (!sameCode(code, registry.inviteCode)) {
-    attempts.count += 1;
-    if (attempts.count >= MAX_BAD_CODES) {
-      attempts.blockedUntil = Date.now() + BAD_CODE_BLOCK_MS;
-      attempts.count = 0;
-    }
-    badCodes.set(key, attempts);
-    reply(chatId, title("❌", "Code invalide") + "Ce code d'invitation n'est pas correct.");
-    return;
-  }
-  badCodes.delete(key);
+  const phoneNumber = match[1].replace(/[^0-9]/g, "");
 
   if (phoneNumber.length < 8 || phoneNumber.length > 15) {
-    reply(chatId, title("❌", "Numéro invalide") + "Format attendu : <code>/pair &lt;code&gt; &lt;numéro avec indicatif pays&gt;</code>");
+    reply(chatId, title("❌", "Numéro invalide") + "Format attendu : <code>/pair &lt;numéro avec indicatif pays&gt;</code>");
     return;
   }
   if (running.has(key)) {
@@ -632,8 +593,8 @@ bot.onText(/^\/pair(?:@\w+)?\s*$/i, (msg) => {
     msg.chat.id,
     title("📌", "Utilisation") +
       box([
-        "<code>/pair &lt;code_invitation&gt; &lt;ton_numéro&gt;</code>",
-        "<i>Exemple :</i> <code>/pair ABC123 2250788523990</code>",
+        "<code>/pair &lt;ton_numéro&gt;</code>",
+        "<i>Exemple :</i> <code>/pair 2250788523990</code>",
       ])
   );
 });
@@ -644,7 +605,7 @@ bot.onText(/^\/status(?:@\w+)?$/i, (msg) => {
 function sendStatus(chatId) {
   const entry = registry.instances[chatId];
   if (!entry) {
-    reply(chatId, title("ℹ️", "Aucune instance") + "Envoie <code>/pair &lt;code&gt; &lt;numéro&gt;</code> pour en créer une.");
+    reply(chatId, title("ℹ️", "Aucune instance") + "Envoie <code>/pair &lt;numéro&gt;</code> pour en créer une.");
     return;
   }
   reply(
@@ -688,38 +649,19 @@ function sendStats(chatId) {
   );
 }
 
-bot.onText(/^\/setcode(?:@\w+)?\s+(\S+)/i, (msg, match) => {
-  const chatId = msg.chat.id;
-  if (!isAdmin(chatId)) return;
-  registry.inviteCode = match[1];
-  saveRegistry();
-  reply(chatId, title("✅", "Code mis à jour") + `Nouveau code d'invitation : <code>${escapeHtml(match[1])}</code>`);
-});
-bot.onText(/^\/setcode(?:@\w+)?\s*$/i, (msg) => {
-  sendSetcodeUsage(msg.chat.id);
-});
-function sendSetcodeUsage(chatId) {
-  if (!isAdmin(chatId)) return;
-  reply(
-    chatId,
-    title("📌", "Utilisation") +
-      box(["<code>/setcode &lt;nouveau_code&gt;</code>", "<i>Exemple :</i> <code>/setcode ABC123</code>"])
-  );
-}
-
 // Aide-mémoire pour l'admin : rappelle la syntaxe exacte de toutes les
 // commandes réservées à l'admin, sans avoir à les mettre dans le menu "/"
 // public de BotFather (donc invisible pour les autres utilisateurs — il
 // suffit de taper /admin de mémoire, même approximative, pour se rappeler).
 // Les boutons ci-dessous appellent directement les mêmes fonctions que les
-// commandes tapées (voir callback_query plus haut) : pour /setcode, /name et
-// /kill (qui ont besoin d'un argument), le bouton affiche le mode d'emploi
-// exact, exactement comme taper la commande seule le ferait.
+// commandes tapées (voir callback_query plus haut) : pour /name et /kill
+// (qui ont besoin d'un argument), le bouton affiche le mode d'emploi exact,
+// exactement comme taper la commande seule le ferait.
 function adminKeyboard() {
   return {
     inline_keyboard: [
       [{ text: "📊 Stats", callback_data: "admin_stats" }, { text: "📋 Instances", callback_data: "admin_instances" }],
-      [{ text: "🔑 Setcode", callback_data: "admin_setcode" }, { text: "✏️ Name", callback_data: "admin_name" }],
+      [{ text: "✏️ Name", callback_data: "admin_name" }],
       [{ text: "🛑 Kill", callback_data: "admin_kill" }, { text: "🛑 Killall", callback_data: "admin_killall" }],
     ],
   };
@@ -731,7 +673,6 @@ bot.onText(/^\/admin(?:@\w+)?$/i, (msg) => {
     chatId,
     "<pre>┏━━ ⚙ Admin Panel ━━┓\n" +
       "┃ 📊 /stats\n" +
-      "┃ 🔑 /setcode &lt;code&gt;\n" +
       "┃ 📋 /instances\n" +
       "┃ ✏️ /name &lt;chatId&gt; &lt;nom&gt;\n" +
       "┃ 🛑 /kill &lt;chatId&gt; [wipe]\n" +
@@ -948,4 +889,4 @@ function shutdown(signal) {
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-console.log("✅ Orchestrateur démarré. En attente de commandes Telegram (/pair, /status, /stop, /stats, /setcode, /instances, /name, /kill, /killall)...");
+console.log("✅ Orchestrateur démarré. En attente de commandes Telegram (/pair, /status, /stop, /stats, /instances, /name, /kill, /killall)...");
