@@ -125,30 +125,30 @@ Deux modes existent, à ne pas confondre :
 | Mode | Pour qui | Fichier |
 |---|---|---|
 | **Personnel** : le code d'appairage arrive dans TON Telegram | Toi seul | `telegram-pair.js` (`TELEGRAM_PAIRING_BOT_TOKEN` + `TELEGRAM_OWNER_CHAT_ID` dans `config.js`) |
-| **Public** : chacun obtient SON propre bot WhatsApp via `/pair` | Tout le monde ayant le code d'invitation | `orchestrator/` |
+| **Public** : chacun obtient SON propre bot WhatsApp via `/pair` | Tout le monde ayant accès au bot Telegram | `orchestrator/` |
 
 ### Mettre en place le mode public
 
 1. Sur Telegram, crée un bot avec **@BotFather** et copie son token (un bot **différent** de ceux de `config.js`).
 2. Récupère ton ID Telegram avec **@userinfobot**.
-3. Remplis `orchestrator/config.js` : `TELEGRAM_BOT_TOKEN`, `ADMIN_CHAT_ID`, `INVITE_CODE` (et, si tu veux, `MAX_INSTANCES` ; `0` = pas de limite).
+3. Remplis `orchestrator/config.js` : `TELEGRAM_BOT_TOKEN`, `ADMIN_CHAT_ID` (et, si tu veux, `MAX_INSTANCES` ; `0` = pas de limite).
 4. Lance : `npm install` puis `npm run orchestrator`.
 
 ### Utilisation (côté utilisateur)
 
-1. Ouvrir ton bot Telegram **en message privé** et envoyer : `/pair <code_invitation> <numéro avec indicatif>` (ex : `/pair MONCODE 2250700000000`).
+1. Ouvrir ton bot Telegram **en message privé** et envoyer : `/pair <numéro avec indicatif>` (ex : `/pair 2250700000000`).
 2. Le bot répond avec un **code d'appairage**. Sur le téléphone : **WhatsApp → Paramètres → Appareils liés → Lier un appareil → Lier avec un numéro de téléphone**, puis entrer le code (il expire vite).
 3. Un message « ✅ connecté » confirme que le bot est actif. Les autres commandes : `/status`, `/stop`.
 
-Commandes admin : `/stats` (vue d'ensemble) et `/setcode <nouveau_code>` (change le code d'invitation sans redémarrer).
+Commande admin : `/stats` (vue d'ensemble).
 
 ### Ce qui est isolé, ce qui est partagé
 
 - **Par utilisateur** (`orchestrator/instances/<id>/`) : session WhatsApp, réglages, contacts, statuts programmés, journal `bot.log`.
 - **Partagé** : le code du bot, `config.js` (dont la clé Groq de l'IA) et les outils (`yt-dlp`, `ffmpeg`).
-- Sur une instance publique, `.update` et `.grok_clé_api=` sont désactivées : seul l'administrateur du serveur gère le code et les clés.
+- Sur une instance publique, `.update` et `.grok_clé_api=` sont désactivées : seul l'administrateur du serveur gère les clés.
 
-> 🔒 Ne partage jamais `orchestrator/config.js` ni `orchestrator/registry.json` (token, code d'invitation, liste des utilisateurs).
+> 🔒 Ne partage jamais `orchestrator/config.js` ni `orchestrator/registry.json` (token, liste des utilisateurs).
 
 ## 📋 Commandes disponibles
 
