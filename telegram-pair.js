@@ -16,6 +16,9 @@
 //      saisie dans la console.
 //   4. Le code d'appairage généré par WhatsApp est envoyé dans Telegram,
 //      en plus d'être affiché dans la console.
+//   5. Une fois configuré, "/restart" fonctionne à tout moment (même si le
+//      bot est déjà appairé et tourne normalement) pour redémarrer le
+//      process — utile si le bot ne répond plus du tout sur WhatsApp.
 //
 // Sécurité : seul le chat dont l'ID correspond à TELEGRAM_OWNER_CHAT_ID est
 // écouté ; tout message venant d'un autre chat est ignoré. Ne partage jamais
@@ -115,9 +118,35 @@ function sendPairingError(bot, config, message) {
   return bot.sendMessage(ownerId, `❌ ${message}`).catch(() => {});
 }
 
+// Écoute en permanence "/restart" venant du propriétaire (TELEGRAM_OWNER_CHAT_ID)
+// et redémarre le process du bot WhatsApp — pratique quand le bot ne répond
+// plus DU TOUT sur WhatsApp (donc que .restart, lui, est injoignable) mais que
+// Telegram fonctionne encore. Contrairement à waitForPhoneNumber(), ce
+// listener n'est jamais retiré : il reste actif tant que le process tourne,
+// pairing terminé ou non.
+function listenForRestart(bot, config) {
+  const ownerId = String(config.TELEGRAM_OWNER_CHAT_ID);
+
+  bot.on("message", (msg) => {
+    if (String(msg.chat.id) !== ownerId) return; // ignore tout chat qui n'est pas le propriétaire
+    if (!/^\/restart(?:@\w+)?\s*$/i.test(msg.text || "")) return;
+
+    bot
+      .sendMessage(ownerId, "🔄 Redémarrage en cours... Le bot revient dans quelques secondes.")
+      .catch(() => {});
+
+    // Code de sortie 1 (pas 0) : la plupart des panels d'hébergement
+    // (Katabump, Pterodactyl, OptikLink...) ne relancent automatiquement le
+    // process QUE lorsqu'il se termine comme un "crash" (code non nul) —
+    // voir le même choix dans la commande WhatsApp .restart (commands/index.js).
+    setTimeout(() => process.exit(1), 1500);
+  });
+}
+
 module.exports = {
   createPairingBot,
   waitForPhoneNumber,
   sendPairingCode,
   sendPairingError,
+  listenForRestart,
 };

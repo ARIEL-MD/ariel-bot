@@ -439,15 +439,21 @@ async function startBot() {
   contactsStore.init(sock);
   blocklistStore.init(sock);
 
+  // Bot Telegram optionnel (voir telegram-pair.js) : créé ici, AVANT de savoir
+  // si une session existe déjà, pour que "/restart" fonctionne aussi bien
+  // pendant l'appairage qu'une fois le bot déjà connecté et actif — pas
+  // seulement au tout premier démarrage. Renvoie null si
+  // TELEGRAM_PAIRING_BOT_TOKEN / TELEGRAM_OWNER_CHAT_ID ne sont pas
+  // configurés dans config.js — dans ce cas tout se comporte exactement
+  // comme avant (pairing console uniquement, pas de /restart Telegram).
+  const pairingBot = telegramPairing.createPairingBot(config);
+  if (pairingBot) {
+    telegramPairing.listenForRestart(pairingBot, config);
+  }
+
   // --- Si pas encore connecté : demander le numéro et générer le code ---
   if (!sock.authState.creds.registered) {
     console.log("ℹ️  Aucune session enregistrée : demande du numéro de téléphone.");
-
-    // Bot Telegram optionnel pour piloter le pairing à distance (voir
-    // telegram-pair.js). Renvoie null si TELEGRAM_PAIRING_BOT_TOKEN /
-    // TELEGRAM_OWNER_CHAT_ID ne sont pas configurés dans config.js — dans ce
-    // cas tout se comporte exactement comme avant (console uniquement).
-    const pairingBot = telegramPairing.createPairingBot(config);
 
     const phoneNumber = await resolvePhoneNumber(pairingBot);
 
@@ -681,7 +687,17 @@ async function startBot() {
     // redémarrage du process ET une simple coupure/reprise de connexion en
     // cours de route (voir commentaire sur `lastConnectionOpenAt` plus haut).
     const freshnessThreshold = Math.max(START_TIME, lastConnectionOpenAt) - 10_000;
-    if (msgTimestamp && msgTimestamp < freshnessThreshold) {
+    // Exception : les messages "fromMe" (tapés par le propriétaire sur son
+    // propre WhatsApp) sont exclus de ces deux filtres d'ancienneté. WhatsApp
+    // multi-device peut mettre plus de 60s à "échoïser" vers le bot un message
+    // que tu viens de taper toi-même (téléphone en veille, réseau, etc.), ce
+    // qui les faisait rejeter comme "trop vieux" — résultat : tes propres
+    // commandes ne répondaient jamais, alors que celles des autres (reçues
+    // directement, sans cet aller-retour) marchaient. La protection contre le
+    // rejeu d'un vieux message reste assurée par isMessageProcessed()/msgId
+    // un peu plus bas, donc retirer ce filtre pour fromMe ne réintroduit pas
+    // le risque qu'il visait à couvrir.
+    if (!msg.key.fromMe && msgTimestamp && msgTimestamp < freshnessThreshold) {
       return;
     }
 
@@ -694,9 +710,9 @@ async function startBot() {
     // START_TIME/lastConnectionOpenAt (donc même si le filtre au-dessus ne
     // l'a pas déjà arrêté). C'est la vraie garantie qu'AUCUNE commande tapée
     // il y a plus d'une minute ne peut être exécutée, peu importe la raison
-    // de la redélivrance.
+    // de la redélivrance. (Sauf fromMe : voir commentaire ci-dessus.)
     const MAX_MESSAGE_AGE_MS = 60_000; // 60s de marge (réseau lent, horloge tel/serveur)
-    if (msgTimestamp && Date.now() - msgTimestamp > MAX_MESSAGE_AGE_MS) {
+    if (!msg.key.fromMe && msgTimestamp && Date.now() - msgTimestamp > MAX_MESSAGE_AGE_MS) {
       return;
     }
 
