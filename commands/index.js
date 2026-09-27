@@ -48,6 +48,12 @@ function getYoutubeCookieArgs() {
   return fs.existsSync(YOUTUBE_COOKIES_PATH) ? ["--cookies", YOUTUBE_COOKIES_PATH] : [];
 }
 const config = require("../config");
+// Numéro de contact affiché dans .menu et .owner : volontairement FIXE
+// (indépendant de OWNER_NUMBER, qui lui peut être surchargé par instance via
+// l'orchestrateur pour que chaque déployeur reste admin de SON bot). Ainsi,
+// quel que soit le numéro utilisé pour héberger une instance, le contact
+// affiché aux utilisateurs reste toujours celui-ci.
+const CONTACT_NUMBER = "2250788523990";
 const {
   PREFIX,
   PREFIXES,
@@ -1238,6 +1244,7 @@ const commands = [
         "Outils",
         "Fun",
         "Groupe",
+        "Autre",
       ];
       for (const c of commands) {
         if (c.hidden) continue;
@@ -1277,7 +1284,7 @@ const commands = [
         `┃ 👋 ${greeting()}, ${deployerDisplay}\n` +
         `┃ 🤖 Nom du bot : ${BOT_NAME}\n` +
         `┃ 👑 Propriétaire : *ARIEL*\n` +
-        `┃ 📞 Contact : wa.me/${OWNER_NUMBER}\n` +
+        `┃ 📞 Contact : wa.me/${CONTACT_NUMBER}\n` +
         `┃ ${modeEmoji} Mode : *${MODE.toUpperCase()}*\n` +
         `┃ 🕐 ${formatDateFR()}\n` +
         `┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛`;
@@ -1368,7 +1375,7 @@ const commands = [
     category: "Général",
     run: async (sock, msg, { from }) => {
       await sock.sendMessage(from, {
-        text: `Nom: ARIEL\nContact: wa.me/${OWNER_NUMBER}`,
+        text: `Nom: ARIEL\nContact: wa.me/${CONTACT_NUMBER}`,
       });
     },
   },
