@@ -1,4 +1,4 @@
-// ============ PROFIL & STATUT (pp, fullpp, block, unblock, whois, gjid, setstatus, scstatus) ============
+// ============ PROFIL & STATUT (pp, block, unblock, setstatus, scstatus) ============
 // Ce module ajoute des commandes de gestion du profil WhatsApp du bot et de
 // diffusion de statuts (stories), adaptées à l'architecture de ce projet
 // (tableau `commands`, run(sock, msg, { from, args, quoted, senderNumber })).
@@ -183,6 +183,66 @@ function initScheduledStatuses(sock) {
   }
 }
 
+
+// ------------------------------------------------------------------
+// Blocage / déblocage de contacts (.block / .unblock)
+// ------------------------------------------------------------------
+
+// Détermine le JID visé : mention > message cité > numéro en argument >
+// interlocuteur du chat privé en cours.
+function resolveBlockTarget(msg, args, from) {
+  const ctx = msg.message?.extendedTextMessage?.contextInfo;
+  if (ctx?.mentionedJid?.length) return ctx.mentionedJid[0];
+  if (ctx?.participant) return ctx.participant;
+  if (args[0]) {
+    if (args[0].includes("@")) return args[0];
+    const digits = args[0].replace(/[^0-9]/g, "");
+    if (digits) return `${digits}@s.whatsapp.net`;
+  }
+  if (from && !from.endsWith("@g.us") && from !== "status@broadcast" && !from.endsWith("@broadcast")) {
+    return from;
+  }
+  return null;
+}
+
+function makeBlockCommand(name, action, doneText, desc) {
+  return {
+    name,
+    desc,
+    category: "Owner",
+    run: async (sock, msg, { from, senderNumber, args }) => {
+      if (!isOwner(senderNumber)) {
+        return sock.sendMessage(from, { text: "❌ Réservé au propriétaire du bot." });
+      }
+      const target = resolveBlockTarget(msg, args, from);
+      if (!target) {
+        return sock.sendMessage(from, {
+          text:
+            `Indique qui ${action === "block" ? "bloquer" : "débloquer"} :\n` +
+            `- .${name} 22501234567\n` +
+            `- .${name} @mention\n` +
+            `- réponds à un de ses messages avec *.${name}*\n` +
+            `- ou tape *.${name}* directement dans sa discussion privée.`,
+        });
+      }
+      const targetNumber = target.split("@")[0].split(":")[0];
+      const selfNumber = (sock.user?.id || "").split("@")[0].split(":")[0];
+      if (targetNumber === OWNER_NUMBER || (selfNumber && targetNumber === selfNumber)) {
+        return sock.sendMessage(from, { text: "❌ Tu ne peux pas te bloquer toi-même." });
+      }
+      try {
+        await sock.updateBlockStatus(target, action);
+        await sock.sendMessage(from, { text: `${doneText} (+${targetNumber})` });
+      } catch (err) {
+        console.error(`Erreur .${name} :`, err);
+        await sock.sendMessage(from, {
+          text: `❌ Impossible de ${action === "block" ? "bloquer" : "débloquer"} ce contact.`,
+        });
+      }
+    },
+  };
+}
+
 // ------------------------------------------------------------------
 
 const commands = [
@@ -349,6 +409,18 @@ const commands = [
       }
     },
   },
+  makeBlockCommand(
+    "block",
+    "block",
+    "🔴 Contact bloqué.",
+    "Bloque un contact (numéro, mention, message cité, ou chat privé en cours) - propriétaire"
+  ),
+  makeBlockCommand(
+    "unblock",
+    "unblock",
+    "🟢 Contact débloqué.",
+    "Débloque un contact (numéro, mention, message cité, ou chat privé en cours) - propriétaire"
+  ),
 ];
 
 module.exports = commands;
