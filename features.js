@@ -103,7 +103,7 @@ const VIEWONCE_DIR = path.join(DATA_DIR, "viewonce_cache");
 // le média même une semaine, voire plusieurs semaines, après réception" —
 // voir aussi .vu ci-dessous qui permet de le récupérer sans avoir à retrouver
 // et citer le message d'origine dans le chat.
-const VIEWONCE_DISK_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 jours
+const VIEWONCE_DISK_TTL_MS = 5 * 24 * 60 * 60 * 1000; // 5 jours
 
 try {
   if (!fs.existsSync(VIEWONCE_DIR)) fs.mkdirSync(VIEWONCE_DIR, { recursive: true });
